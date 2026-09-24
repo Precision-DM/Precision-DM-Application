@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Assays - Precison-DM Data Explorer{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-clipboard2-pulse"></i> Assay</h1>        
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted">Leukemia Panel (Blood)</h6>
+                <h3 id="bloodPanelCount">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted">Leukemia Panel (BM)</h6>
+                <h3 id="bmPanelCount">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted">Leukemia Panel (Tissue)</h6>
+                <h3 id="tissuePanelCount">-</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">    
+    <div class="card-body">
+        <form id="assaySearchForm">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Panel Type</label>
+                    <select class="form-select" id="panelType">
+                        <option value="">All Panels</option>
+                        <option value="BLOOD">Leukemia Panel - Blood</option>
+                        <option value="BM">Leukemia Panel - Bone Marrow</option>
+                        <option value="TISSUE">Leukemia Panel - Tissue</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Date From</label>
+                    <input type="date" class="form-control" id="assayDateFrom">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Date To</label>
+                    <input type="date" class="form-control" id="assayDateTo">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Cohort ID</label>
+                    <input type="text" class="form-control" id="assayCohortId" placeholder="e.g., CRC0...">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Table -->
+<div class="card">    
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Specimen #</th>
+                        <th>MRN</th>
+                        <th>Patient</th>
+                        <th>Panel</th>
+                        <th>Collected</th>
+                        <th>Result Date</th>
+                    </tr>
+                </thead>
+                <tbody id="assayTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            Use search to find assay results
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load quick stats on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadPanelCounts();
+});
+
+function loadPanelCounts() {
+    fetch('/api/assays/count_by_panel?panel_name=BLOOD')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('bloodPanelCount').textContent = data.patient_count || 0;
+        });
+    
+    fetch('/api/assays/count_by_panel?panel_name=BM')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('bmPanelCount').textContent = data.patient_count || 0;
+        });
+    
+    fetch('/api/assays/count_by_panel?panel_name=TISSUE')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('tissuePanelCount').textContent = data.patient_count || 0;
+        });
+}
+
+document.getElementById('assaySearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    searchAssays();
+});
+
+function searchAssays() {
+    const params = new URLSearchParams();
+    
+    const panelType = document.getElementById('panelType').value;
+    const dateFrom = document.getElementById('assayDateFrom').value;
+    const dateTo = document.getElementById('assayDateTo').value;
+    const cohortId = document.getElementById('assayCohortId').value;
+    
+    if (panelType) params.append('panel_type', panelType);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    if (cohortId) params.append('cohort_id', cohortId);
+    
+    // Set loading cursor
+    document.body.style.cursor = 'wait';
+    
+    fetch(`/api/assays/search?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => displayAssayResults(data))
+        .catch(error => console.error('Error:', error))
+        .finally(() => {
+            // Reset cursor
+            document.body.style.cursor = 'default';
+        });
+}
+
+function displayAssayResults(data) {
+    const tbody = document.getElementById('assayTableBody');
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No assays found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = data.map(a => `
+        <tr>
+            <td><code>${a.specimen_number || 'N/A'}</code></td>
+            <td><code>${a.mrn || 'N/A'}</code></td>
+            <td>${a.first_name || ''} ${a.last_name || ''}</td>
+            <td><span class="badge bg-info">${a.proc_name || 'N/A'}</span></td>
+            <td>${a.specimen_collected_dttm ? new Date(a.specimen_collected_dttm).toLocaleDateString() : 'N/A'}</td>
+            <td>${a.result_time ? new Date(a.result_time).toLocaleDateString() : 'N/A'}</td>
+        </tr>
+    `).join('');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}ECOG PS - Precison-DM Data Explorer{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-activity"></i> ECOG Performance Status</h1>        
+    </div>
+</div>
+
+<!-- ECOG Reference -->
+<div class="alert alert-info mb-4">
+    <h6><i class="bi bi-info-circle"></i> ECOG Performance Status Scale</h6>
+    <small>
+        <strong>0:</strong> Fully active | 
+        <strong>1:</strong> Restricted strenuous activity | 
+        <strong>2:</strong> Ambulatory, capable of self-care | 
+        <strong>3:</strong> Limited self-care | 
+        <strong>4:</strong> Completely disabled | 
+        <strong>5:</strong> Dead
+    </small>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">    
+    <div class="card-body">
+        <form id="ecogSearchForm">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Cohort ID</label>
+                    <input type="text" class="form-control" id="ecogCohortId" placeholder="e.g., CRC0...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">ECOG Score</label>
+                    <select class="form-select" id="ecogScore">
+                        <option value="">All Scores</option>
+                        <option value="0">0 - Fully Active</option>
+                        <option value="1">1 - Restricted</option>
+                        <option value="2">2 - Ambulatory</option>
+                        <option value="3">3 - Limited Self-Care</option>
+                        <option value="4">4 - Disabled</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Date From</label>
+                    <input type="date" class="form-control" id="ecogDateFrom">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Date To</label>
+                    <input type="date" class="form-control" id="ecogDateTo">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>MRN</th>
+                        <th>Patient</th>
+                        <th>Score</th>
+                        <th>Interpretation</th>
+                        <th>Date</th>
+                        <th>Note Type</th>
+                    </tr>
+                </thead>
+                <tbody id="ecogTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            Use search to find ECOG scores
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// PHI Masking utility functions - Full masking
+function maskMRN(mrn) {
+    if (!mrn || mrn === 'N/A') return 'N/A';
+    const str = String(mrn);
+    return '*'.repeat(str.length);
+}
+
+function maskName(firstName, lastName) {
+    const maskPart = (name) => {
+        if (!name) return '';
+        const str = String(name).trim();
+        if (str.length === 0) return '';
+        return '*'.repeat(str.length);
+    };
+    
+    const maskedFirst = maskPart(firstName);
+    const maskedLast = maskPart(lastName);
+    
+    if (!maskedFirst && !maskedLast) return 'N/A';
+    return `${maskedFirst} ${maskedLast}`.trim();
+}
+
+document.getElementById('ecogSearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    searchECOG();
+});
+
+function searchECOG() {
+    const params = new URLSearchParams();
+    
+    const cohortId = document.getElementById('ecogCohortId').value;
+    const score = document.getElementById('ecogScore').value;
+    const dateFrom = document.getElementById('ecogDateFrom').value;
+    const dateTo = document.getElementById('ecogDateTo').value;
+    
+    if (cohortId) params.append('cohort_id', cohortId);
+    if (score) params.append('ecog_score', score);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    
+    // Set loading cursor
+    document.body.style.cursor = 'wait';
+    
+    fetch(`/api/ecog/search?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => displayECOGResults(data))
+        .catch(error => console.error('Error:', error))
+        .finally(() => {
+            // Reset cursor
+            document.body.style.cursor = 'default';
+        });
+}
+
+function displayECOGResults(data) {
+    const tbody = document.getElementById('ecogTableBody');
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No results found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = data.map(e => `
+        <tr>
+            <td><code>${maskMRN(e.mrn)}</code></td>
+            <td>${maskName(e.first_name, e.last_name)}</td>
+            <td><span class="badge ${getECOGBadgeClass(e.ecog)}">${e.ecog}</span></td>
+            <td><small>${e.ecogps_interpretation || 'N/A'}</small></td>
+            <td>${e.ecog_date_full || 'N/A'}</td>
+            <td>${e.note_type || 'N/A'}</td>
+        </tr>
+    `).join('');
+}
+
+function getECOGBadgeClass(score) {
+    const classes = {
+        0: 'bg-success',
+        1: 'bg-info',
+        2: 'bg-warning text-dark',
+        3: 'bg-orange',
+        4: 'bg-danger'
+    };
+    return classes[score] || 'bg-secondary';
+}
+</script>
+{% endblock %}

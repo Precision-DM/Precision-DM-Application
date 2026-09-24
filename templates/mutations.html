@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+
+{% block title %}Mutations - Precison-DM Data Explorer{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-virus icon-mutations"></i> Mutation</h1>        
+    </div>
+</div>
+
+<!-- Query Form -->
+<div class="card mb-4">    
+    <div class="card-body">
+        <form id="mutationQueryForm">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Primary Gene <span class="text-danger">*</span></label>
+                    <select class="form-select" id="primaryGene" required>
+                        <option value="">Select Gene...</option>
+                        {% for gene in genes %}
+                        <option value="{{ gene }}">{{ gene }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Secondary Gene</label>
+                    <select class="form-select" id="secondaryGene">
+                        <option value="">None</option>
+                        {% for gene in genes %}
+                        <option value="{{ gene }}">{{ gene }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Date From</label>
+                    <input type="date" class="form-control" id="dateFrom">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Date To</label>
+                    <input type="date" class="form-control" id="dateTo">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-calculator"></i> Count
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-hash"></i> Patient Count</h5>
+            </div>
+            <div class="card-body bg-light text-center">
+                <h1 class="display-1 text-success" id="patientCount">-</h1>
+                <p class="text-muted">Patients with selected mutation(s)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Yearly Trend</h5>
+            </div>
+            <div class="card-body">
+                <div id="yearlyChart" style="height: 250px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Patient List -->
+<div class="card">
+     <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list"></i> Patient List</h5>
+        <div>
+            <button class="btn btn-sm btn-outline-success" id="loadPatientsBtn" disabled>
+                <i class="bi bi-arrow-clockwise"></i> Load Patients
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="mutationPatientsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>MRN</th>
+                        <th>Name</th>
+                        <th>Gene</th>
+                        <th>AA Change</th>
+                        <th>VAF %</th>
+                        <th>Specimen Date</th>
+                        <th>Test Type</th>
+                    </tr>
+                </thead>
+                <tbody id="mutationPatientsBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">
+                            Select a gene and click "Count" to see results
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentGene = '';
+let patientData = [];
+
+// PHI Masking utility functions - Full masking
+function maskMRN(mrn) {
+    if (!mrn || mrn === 'N/A') return 'N/A';
+    const str = String(mrn);
+    return '*'.repeat(str.length);
+}
+
+function maskName(firstName, lastName) {
+    const maskPart = (name) => {
+        if (!name) return '';
+        const str = String(name).trim();
+        if (str.length === 0) return '';
+        return '*'.repeat(str.length);
+    };
+    
+    const maskedFirst = maskPart(firstName);
+    const maskedLast = maskPart(lastName);
+    
+    if (!maskedFirst && !maskedLast) return 'N/A';
+    return `${maskedFirst} ${maskedLast}`.trim();
+}
+
+document.getElementById('mutationQueryForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    countMutations();
+});
+
+function countMutations() {
+    const gene = document.getElementById('primaryGene').value;
+    const secondGene = document.getElementById('secondaryGene').value;
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    
+    if (!gene) {
+        alert('Please select a primary gene');
+        return;
+    }
+    
+    currentGene = gene;
+    
+    const params = new URLSearchParams();
+    params.append('gene', gene);
+    if (secondGene) params.append('second_gene', secondGene);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    
+    // Set loading cursor
+    document.body.style.cursor = 'wait';
+    
+    // Get count
+    fetch(`/api/mutations/count?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('patientCount').textContent = data.patient_count || 0;
+            document.getElementById('loadPatientsBtn').disabled = false;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('patientCount').textContent = 'Error';
+        });
+    
+    // Get yearly trend
+    fetch(`/api/mutations/yearly?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            plotYearlyTrend(data);
+        })
+        .catch(error => console.error('Error:', error))
+        .finally(() => {
+            // Reset cursor
+            document.body.style.cursor = 'default';
+        });
+}
+
+function plotYearlyTrend(data) {
+    // Handle empty data
+    if (!data || data.length === 0) {
+        document.getElementById('yearlyChart').innerHTML = '<div class="text-center text-muted py-5">No trend data available</div>';
+        return;
+    }
+    
+    const years = data.map(d => d.year);
+    const counts = data.map(d => d.patient_count);
+    const maxValue = Math.max(...counts);
+    
+    const trace = {
+        x: years,
+        y: counts,
+        type: 'bar',
+        marker: { color: '#17a2b8' },
+        text: counts,
+        textposition: 'outside',
+        textfont: { 
+            size: 14, 
+            weight: 'bold',
+            color: '#333'
+        },
+        cliponaxis: false
+    };
+    
+    const layout = {
+        margin: { t: 50, r: 20, b: 50, l: 50 },
+        xaxis: { 
+            title: { 
+                text: 'Year',
+                font: { size: 14, weight: 'bold', color: '#333' }
+            },
+            tickfont: { size: 12, weight: 'bold', color: '#333' },
+            fixedrange: true
+        },
+        yaxis: { 
+            title: { 
+                text: 'Patient Count',
+                font: { size: 14, weight: 'bold', color: '#333' }
+            },
+            tickfont: { size: 12, weight: 'bold', color: '#333' },
+            range: [0, maxValue * 1.2],
+            fixedrange: true
+        }
+    };
+    
+    const config = {
+        responsive: true,
+        displayModeBar: false,
+        staticPlot: false
+    };
+    
+    Plotly.newPlot('yearlyChart', [trace], layout, config);
+}
+
+function displayMutationPatients(data) {
+    const tbody = document.getElementById('mutationPatientsBody');
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No patients found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = data.map(p => `
+        <tr>
+            <td><code>${maskMRN(p.mrn)}</code></td>
+            <td>${maskName(p.first_name, p.last_name)}</td>
+            <td><span class="badge bg-primary">${p.gene_name_hgnc || 'N/A'}</span></td>
+            <td>${p.amino_acid_change_hgvs || 'N/A'}</td>
+            <td>${p.mutation_vaf ? p.mutation_vaf : 'N/A'}</td>
+            <td>${p.specimen_collected_dttm ? new Date(p.specimen_collected_dttm).toLocaleDateString() : 'N/A'}</td>
+            <td>${p.proc_name || 'N/A'}</td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('loadPatientsBtn').addEventListener('click', function() {
+    if (!currentGene) return;
+    
+    // Set loading cursor
+    document.body.style.cursor = 'wait';
+    
+    // Show loading state
+    document.getElementById('mutationPatientsBody').innerHTML = `
+        <tr>
+            <td colspan="7" class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading patients with ${currentGene} mutation...</p>
+            </td>
+        </tr>
+    `;
+    
+    fetch(`/api/mutations/patients?gene=${encodeURIComponent(currentGene)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            patientData = data;
+            displayMutationPatients(data);
+            document.getElementById('exportMutationBtn').disabled = data.length === 0;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('mutationPatientsBody').innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Error loading patients: ${error.message}
+                    </td>
+                </tr>
+            `;
+        })
+        .finally(() => {
+            // Reset cursor
+            document.body.style.cursor = 'default';
+        });
+});
+
+document.getElementById('exportMutationBtn').addEventListener('click', function() {
+    if (patientData.length === 0) return;
+    
+    const headers = ['MRN (Masked)', 'Name (Masked)', 'Gene', 'AA Change', 'VAF', 'Specimen Date', 'Test Type'];
+    const csvContent = [
+        headers.join(','),
+        ...patientData.map(p => [
+            maskMRN(p.mrn),
+            maskName(p.first_name, p.last_name),
+            p.gene_name_hgnc || '',
+            p.amino_acid_change_hgvs || '',
+            p.mutation_vaf || '',
+            p.specimen_collected_dttm || '',
+            p.proc_name || ''
+        ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentGene}_patients_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+});
+</script>
+{% endblock %}

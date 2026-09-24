@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Patients - Precison-DM Data Explorer{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-people"></i> Patient</h1>        
+    </div>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">    
+    <div class="card-body">
+        <form id="patientSearchForm">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">MRN</label>
+                    <input type="text" class="form-control" id="searchMRN" placeholder="e.g., JH12345678">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Patient Name</label>
+                    <input type="text" class="form-control" id="searchName" placeholder="First or Last Name">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Gene Mutation</label>
+                    <input type="text" class="form-control" id="searchGene" placeholder="e.g., IDH2, NPM1">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Table -->
+<div class="card">    
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="patientsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>MRN</th>
+                        <th>Name</th>
+                        <th>DOB</th>
+                        <th>Gender</th>
+                        <th>Race</th>
+                        <th>Ethnicity</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="patientsTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">
+                            Use the search form above to find patients
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="resultCount" class="text-muted"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentResults = [];
+
+document.getElementById('patientSearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    searchPatients();
+});
+
+function searchPatients() {
+    const mrn = document.getElementById('searchMRN').value;
+    const name = document.getElementById('searchName').value;
+    const gene = document.getElementById('searchGene').value;
+    
+    const params = new URLSearchParams();
+    if (mrn) params.append('mrn', mrn);
+    if (name) params.append('name', name);
+    if (gene) params.append('gene', gene);
+    
+    // Set loading cursor
+    document.body.style.cursor = 'wait';
+    
+    fetch(`/api/patients/search?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            currentResults = data;
+            displayResults(data);
+        })
+        .catch(error => console.error('Error:', error))
+        .finally(() => {
+            // Reset cursor
+            document.body.style.cursor = 'default';
+        });
+}
+
+function displayResults(data) {
+    const tbody = document.getElementById('patientsTableBody');
+    const exportBtn = document.getElementById('exportBtn');
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No patients found</td></tr>';
+        if (exportBtn) exportBtn.disabled = true;
+        document.getElementById('resultCount').textContent = '';
+        return;
+    }
+    
+    if (exportBtn) exportBtn.disabled = false;
+    document.getElementById('resultCount').textContent = `Showing ${data.length} patients`;
+    
+    tbody.innerHTML = data.map(patient => `
+        <tr>
+            <td><code>${patient.mrn || 'N/A'}</code></td>
+            <td>${patient.first_name || ''} ${patient.last_name || ''}</td>
+            <td>${patient.dob ? new Date(patient.dob).toLocaleDateString() : 'N/A'}</td>
+            <td>${patient.gender || 'N/A'}</td>
+            <td>${patient.race || 'N/A'}</td>
+            <td>${patient.ethnicity || 'N/A'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewPatientDetails('${patient.cohort_id}')">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function viewPatientDetails(cohortId) {
+    alert(`View details for patient ${cohortId}\n(Feature coming soon)`);
+}
+</script>
+{% endblock %}

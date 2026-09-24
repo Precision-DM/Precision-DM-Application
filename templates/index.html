@@ -1,0 +1,801 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Precison-DM Data Explorer{% endblock %}
+
+{% block content %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card h-100" style="background-color: #e2e8f0;">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted mb-2">Total Patients</h6>
+                <h2 class="mb-0">{{ stats.total_patients | default(0) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100" style="background-color: #e2e8f0;">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted mb-2">Unique Genes</h6>
+                <h2 class="mb-0">{{ stats.total_mutations | default(0) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100" style="background-color: #e2e8f0;">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted mb-2">Total Assays</h6>
+                <h2 class="mb-0">{{ stats.total_assays | default(0) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100" style="background-color: #e2e8f0;">
+            <div class="card-body">
+                <h6 class="text-uppercase fw-bold text-muted mb-2">Chimerism Tests</h6>
+                <h2 class="mb-0">{{ stats.total_chimerism | default(0) }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 1: Patient Demographics - Adjusted column widths -->
+<div class="row mb-4">
+    <!-- Patient Sex - Narrower -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0 chart-title"><i class="bi bi-gender-ambiguous"></i> Patient Sex</h6>
+            </div>
+            <div class="card-body position-relative">
+                <div id="sexChartLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="sexChart" style="height: 280px;"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Patient Race - Wider -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0 chart-title"><i class="bi bi-people-fill"></i> Patient Race</h6>
+            </div>
+            <div class="card-body position-relative">
+                <div id="raceChartLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="raceChart" style="height: 280px;"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Patient Ethnicity - Narrower -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0 chart-title"><i class="bi bi-globe"></i> Patient Ethnicity</h6>
+            </div>
+            <div class="card-body position-relative">
+                <div id="ethnicityChartLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="ethnicityChart" style="height: 280px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Test Types & Sample Distribution -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0 chart-title"><i class="bi bi-clipboard2-pulse"></i> Test Type</h6>
+            </div>
+            <div class="card-body position-relative">
+                <div id="testTypeChartLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="testTypeChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0 chart-title"><i class="bi bi-collection"></i> Number of Samples Per Patient</h6>
+            </div>
+            <div class="card-body position-relative">
+                <div id="samplesPerPatientChartLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="samplesPerPatientChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: Mutation Count & Mutated Genes Side by Side -->
+<div class="row mb-4">
+    <!-- Mutation Count Per Specimen -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header" style="min-height: 76px; display: flex; align-items: center;">
+                <h6 class="mb-0 chart-title"><i class="bi bi-virus"></i> Mutation Count</h6>
+            </div>
+            <div class="card-body position-relative">
+                <div id="mutationCountChartLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="mutationCountChart" style="height: 380px;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mutated Genes Table -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center" style="min-height: 56px;">
+                <h6 class="mb-0 chart-title"><i class="bi bi-dna"></i> Mutated Genes</h6>
+                <div class="d-flex align-items-center">
+                    <input type="text" class="form-control form-control-sm me-2" id="geneSearchInput" placeholder="Search gene..." style="width: 150px;">
+                    <span class="badge bg-secondary" id="geneCountBadge">0 genes</span>
+                </div>
+            </div>
+            <div class="card-body position-relative">
+                <div id="mutatedGenesTableLoader" class="chart-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-striped table-hover table-sm" id="mutatedGenesTable">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th class="sortable" data-sort="gene_name" style="cursor: pointer; width: 25%;">
+                                    Gene Name <i class="bi bi-arrow-down-up sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="row_count" style="cursor: pointer; width: 25%;">
+                                    # Mutations <i class="bi bi-arrow-down-up sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="specimen_count" style="cursor: pointer; width: 25%;">
+                                    # Specimens <i class="bi bi-arrow-down-up sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="frequency_pct" style="cursor: pointer; width: 25%;">
+                                    Frequency % <i class="bi bi-arrow-down-up sort-icon"></i>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="mutatedGenesBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.chart-loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 10;
+}
+.chart-loader.d-none {
+    display: none !important;
+}
+/* Larger font for chart titles */
+.chart-title {
+    font-size: 1rem;
+    font-weight: 600;
+}
+.chart-title i {
+    margin-right: 0.5rem;
+}
+/* Sticky table header */
+#mutatedGenesTable thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+/* Sortable columns */
+.sortable:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+.sortable .sort-icon {
+    font-size: 0.75rem;
+    opacity: 0.5;
+}
+.sortable.sorted-asc .sort-icon,
+.sortable.sorted-desc .sort-icon {
+    opacity: 1;
+}
+/* Frequency bar */
+.frequency-bar {
+    height: 8px;
+    background: linear-gradient(90deg, #4299e1 0%, #48bb78 100%);
+    border-radius: 4px;
+    min-width: 2px;
+}
+.frequency-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.frequency-value {
+    min-width: 50px;
+    text-align: right;
+    font-weight: 500;
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Color palettes
+const pieColors = ['#4299e1', '#48bb78', '#ed8936', '#9f7aea', '#ed64a6', '#38b2ac', '#f56565', '#ecc94b'];
+const barColor = '#4299e1';
+const barColorAlt = '#9f7aea';
+
+// Chart configuration defaults
+const defaultLayout = {
+    margin: { t: 30, r: 30, b: 50, l: 60 },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { family: 'inherit', size: 13 }
+};
+
+const defaultConfig = {
+    responsive: true,
+    displayModeBar: false
+};
+
+// Global variable for mutated genes data
+let mutatedGenesData = [];
+let currentSortColumn = 'specimen_count';
+let currentSortDirection = 'desc';
+
+// Hide loader for a specific chart
+function hideLoader(chartId) {
+    const loader = document.getElementById(chartId + 'Loader');
+    if (loader) {
+        loader.classList.add('d-none');
+    }
+}
+
+// Show error message in a chart container
+function showError(chartId, message) {
+    hideLoader(chartId);
+    document.getElementById(chartId).innerHTML = `
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> ${message}</p>
+        </div>
+    `;
+}
+
+// Show no data message
+function showNoData(chartId) {
+    hideLoader(chartId);
+    document.getElementById(chartId).innerHTML = `
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <p class="text-muted mb-0">No data available</p>
+        </div>
+    `;
+}
+
+// Helper function to sort data based on current sort settings
+function sortData(data) {
+    if (!data || data.length === 0) return data;
+    
+    return [...data].sort((a, b) => {
+        let aVal = a[currentSortColumn] || 0;
+        let bVal = b[currentSortColumn] || 0;
+        
+        if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = (bVal || '').toLowerCase();
+        }
+        
+        if (currentSortDirection === 'asc') {
+            return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        } else {
+            return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+        }
+    });
+}
+
+// Patient Sex Chart (Pie)
+function loadPatientSexChart() {
+    fetch('/api/overview/patient_sex')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed');
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('sexChart');
+            
+            if (!data || data.length === 0) {
+                showNoData('sexChart');
+                return;
+            }
+            
+            const trace = {
+                labels: data.map(d => d.label || 'Unknown'),
+                values: data.map(d => d.count || 0),
+                type: 'pie',
+                marker: { colors: pieColors },
+                textinfo: 'percent+label',
+                textposition: 'inside',
+                textfont: { size: 12 },
+                hovertemplate: '<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+            };
+            
+            const layout = {
+                ...defaultLayout,
+                margin: { t: 20, r: 20, b: 60, l: 20 },
+                showlegend: true,
+                legend: { 
+                    orientation: 'h', 
+                    y: -0.15,
+                    x: 0.5,
+                    xanchor: 'center',
+                    font: { size: 11 }
+                }
+            };
+            
+            Plotly.newPlot('sexChart', [trace], layout, defaultConfig);
+        })
+        .catch(error => {
+            console.error('Error loading sex chart:', error);
+            showError('sexChart', 'Error loading data');
+        });
+}
+
+// Patient Race Chart (Horizontal Bar)
+function loadPatientRaceChart() {
+    fetch('/api/overview/patient_race')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed');
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('raceChart');
+            
+            if (!data || data.length === 0) {
+                showNoData('raceChart');
+                return;
+            }
+            
+            // Keep full labels (wider chart now) and reverse for horizontal bar
+            const labels = data.map(d => d.label || 'Unknown').reverse();
+            const values = data.map(d => d.count || 0).reverse();
+            
+            const trace = {
+                y: labels,
+                x: values,
+                type: 'bar',
+                orientation: 'h',
+                marker: { color: barColor },
+                textposition: 'outside',
+                text: values,
+                textfont: { size: 12 },
+                hovertemplate: '<b>%{y}</b><br>Count: %{x}<extra></extra>'
+            };
+            
+            const layout = {
+                ...defaultLayout,
+                margin: { t: 10, r: 50, b: 50, l: 240 },  // Increased left margin from 200 to 220
+                xaxis: { 
+                    title: { text: 'Count', font: { size: 13 } },
+                    tickfont: { size: 12 }
+                },
+                yaxis: { 
+                    automargin: true,
+                    tickfont: { size: 11 },  // Slightly smaller font for labels
+                    ticksuffix: '  '
+                },
+                bargap: 0.3
+            };
+            
+            Plotly.newPlot('raceChart', [trace], layout, defaultConfig);
+        })
+        .catch(error => {
+            console.error('Error loading race chart:', error);
+            showError('raceChart', 'Error loading data');
+        });
+}
+
+// Patient Ethnicity Chart (Pie)
+function loadPatientEthnicityChart() {
+    fetch('/api/overview/patient_ethnicity')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed');
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('ethnicityChart');
+            
+            if (!data || data.length === 0) {
+                showNoData('ethnicityChart');
+                return;
+            }
+            
+            // Shorten long ethnicity labels for legend
+            const shortenLabel = (label) => {
+                if (label.toLowerCase().includes('not hispanic')) return 'Not Hispanic/Latino';
+                if (label.toLowerCase().includes('hispanic')) return 'Hispanic/Latino';
+                if (label.length > 20) return label.substring(0, 17) + '...';
+                return label;
+            };
+            
+            const trace = {
+                labels: data.map(d => shortenLabel(d.label || 'Unknown')),
+                values: data.map(d => d.count || 0),
+                type: 'pie',
+                hole: 0.4,
+                marker: { colors: pieColors.slice(2) },
+                textinfo: 'percent',
+                textposition: 'inside',
+                textfont: { size: 11 },  // Reduced from 14 to 11 to fit small percentages
+                insidetextorientation: 'horizontal',  // Keep text horizontal for readability
+                hovertemplate: '<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+            };
+            
+            const layout = {
+                ...defaultLayout,
+                margin: { t: 10, r: 10, b: 70, l: 10 },  // Reduced margins to make pie larger
+                showlegend: true,
+                legend: { 
+                    orientation: 'h', 
+                    y: -0.2,
+                    x: 0.5,
+                    xanchor: 'center',
+                    font: { size: 10 }  // Slightly smaller legend font
+                }
+            };
+            
+            Plotly.newPlot('ethnicityChart', [trace], layout, defaultConfig);
+        })
+        .catch(error => {
+            console.error('Error loading ethnicity chart:', error);
+            showError('ethnicityChart', 'Error loading data');
+        });
+}
+
+// Test Type Chart (Horizontal Bar)
+function loadTestTypeChart() {
+    fetch('/api/overview/test_type')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed');
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('testTypeChart');
+            
+            if (!data || data.length === 0) {
+                showNoData('testTypeChart');
+                return;
+            }
+            
+            const labels = data.map(d => {
+                const label = d.label || 'Unknown';
+                return label.length > 35 ? label.substring(0, 32) + '...' : label;
+            }).reverse();
+            const values = data.map(d => d.count || 0).reverse();
+            
+            const trace = {
+                y: labels,
+                x: values,
+                type: 'bar',
+                orientation: 'h',
+                marker: { color: '#38b2ac' },
+                textposition: 'outside',
+                text: values,
+                textfont: { size: 12 },
+                hovertemplate: '<b>%{y}</b><br>Count: %{x}<extra></extra>',
+                cliponaxis: false
+            };
+            
+            const layout = {
+                ...defaultLayout,
+                margin: { t: 10, r: 60, b: 50, l: 220 },
+                xaxis: { 
+                    title: { text: 'Number of Tests', font: { size: 13 } },
+                    tickfont: { size: 12 },
+                    automargin: true
+                },
+                yaxis: { 
+                    automargin: true,
+                    tickfont: { size: 12 },
+                    ticksuffix: '  '
+                },
+                bargap: 0.3
+            };
+            
+            Plotly.newPlot('testTypeChart', [trace], layout, defaultConfig);
+        })
+        .catch(error => {
+            console.error('Error loading test type chart:', error);
+            showError('testTypeChart', 'Error loading data');
+        });
+}
+
+// Samples Per Patient Chart (Bar) - FIXED: increased top margin to prevent cutoff
+function loadSamplesPerPatientChart() {
+    fetch('/api/overview/samples_per_patient')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed');
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('samplesPerPatientChart');
+            
+            if (!data || data.length === 0) {
+                showNoData('samplesPerPatientChart');
+                return;
+            }
+            
+            const xLabels = data.map(d => (d.label || 0) + ' sample' + ((d.label || 0) > 1 ? 's' : ''));
+            const yValues = data.map(d => d.count || 0);
+            const maxValue = Math.max(...yValues);
+            
+            const trace = {
+                x: xLabels,
+                y: yValues,
+                type: 'bar',
+                marker: { color: barColorAlt },
+                text: yValues,
+                textposition: 'outside',
+                textfont: { size: 12 },
+                hovertemplate: '<b>%{x}</b><br>Patients: %{y}<extra></extra>',
+                cliponaxis: false
+            };
+            
+            const layout = {
+                ...defaultLayout,
+                margin: { t: 50, r: 30, b: 70, l: 70 },
+                xaxis: { 
+                    title: { text: 'Number of Samples', font: { size: 13 }, standoff: 15 },
+                    tickfont: { size: 12 },
+                    tickangle: -30
+                },
+                yaxis: { 
+                    title: { text: 'Number of Patients', font: { size: 13 }, standoff: 15 },
+                    tickfont: { size: 12 },
+                    range: [0, maxValue * 1.15]
+                },
+                bargap: 0.3
+            };
+            
+            Plotly.newPlot('samplesPerPatientChart', [trace], layout, defaultConfig);
+        })
+        .catch(error => {
+            console.error('Error loading samples per patient chart:', error);
+            showError('samplesPerPatientChart', 'Error loading data');
+        });
+}
+
+// Mutation Count Chart (Bar) - FIXED: increased top margin to prevent cutoff
+function loadMutationCountChart() {
+    fetch('/api/overview/mutation_count')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed');
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('mutationCountChart');
+            
+            if (!data || data.length === 0) {
+                showNoData('mutationCountChart');
+                return;
+            }
+            
+            const groupedData = [];
+            let highCount = 0;
+            
+            data.forEach(d => {
+                const label = d.label || 0;
+                const count = d.count || 0;
+                if (label <= 10) {
+                    groupedData.push({ label: label.toString(), count: count });
+                } else {
+                    highCount += count;
+                }
+            });
+            
+            if (highCount > 0) {
+                groupedData.push({ label: '>10', count: highCount });
+            }
+            
+            const yValues = groupedData.map(d => d.count);
+            const maxValue = Math.max(...yValues);
+            
+            const trace = {
+                x: groupedData.map(d => d.label),
+                y: yValues,
+                type: 'bar',
+                marker: { 
+                    color: groupedData.map((d, i) => `hsl(210, 70%, ${45 + i * 3}%)`)
+                },
+                text: yValues,
+                textposition: 'outside',
+                textfont: { size: 12 },
+                hovertemplate: '<b>%{x} mutation(s)</b><br>Specimens: %{y}<extra></extra>',
+                cliponaxis: false
+            };
+            
+            const layout = {
+                ...defaultLayout,
+                margin: { t: 50, r: 30, b: 70, l: 80 },
+                xaxis: { 
+                    title: { text: 'Number of Mutations', font: { size: 13 }, standoff: 15 },
+                    tickmode: 'linear',
+                    tickfont: { size: 12 }
+                },
+                yaxis: { 
+                    title: { text: 'Number of Specimens', font: { size: 13 }, standoff: 20 },
+                    tickfont: { size: 12 },
+                    range: [0, maxValue * 1.15]
+                },
+                bargap: 0.25
+            };
+            
+            Plotly.newPlot('mutationCountChart', [trace], layout, defaultConfig);
+        })
+        .catch(error => {
+            console.error('Error loading mutation count chart:', error);
+            showError('mutationCountChart', 'Error loading data');
+        });
+}
+
+// Load Mutated Genes Table
+function loadMutatedGenesTable() {
+    fetch('/api/overview/mutated_genes')
+        .then(response => {
+            if (!response.ok) throw new Error('API request failed: ' + response.status);
+            return response.json();
+        })
+        .then(data => {
+            hideLoader('mutatedGenesTable');
+            mutatedGenesData = data || [];
+            
+            document.getElementById('geneCountBadge').textContent = `${mutatedGenesData.length} genes`;
+            
+            renderGenesTable(sortData(mutatedGenesData));
+        })
+        .catch(error => {
+            console.error('Error loading mutated genes:', error);
+            hideLoader('mutatedGenesTable');
+            document.getElementById('mutatedGenesBody').innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Error loading data: ${error.message}
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+// Render genes table
+function renderGenesTable(data) {
+    const tbody = document.getElementById('mutatedGenesBody');
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted">No data available</td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Find max frequency for scaling bars
+    const maxFreq = Math.max(...data.map(d => d.frequency_pct || 0));
+    
+    tbody.innerHTML = data.map(gene => {
+        const freqPct = gene.frequency_pct || 0;
+        const barWidth = maxFreq > 0 ? (freqPct / maxFreq * 100) : 0;
+        
+        return `
+            <tr>
+                <td>
+                    <strong class="text-primary">${gene.gene_name || 'Unknown'}</strong>
+                </td>
+                <td>
+                    ${(gene.row_count || 0).toLocaleString()}
+                </td>
+                <td>
+                    ${(gene.specimen_count || 0).toLocaleString()}
+                </td>
+                <td>
+                    <div class="frequency-container">
+                        <span class="frequency-value">${freqPct.toFixed(2)}%</span>
+                        <div style="flex: 1; background: #e2e8f0; border-radius: 4px; height: 8px;">
+                            <div class="frequency-bar" style="width: ${barWidth}%;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Filter genes by search input
+function filterGenes() {
+    const searchTerm = document.getElementById('geneSearchInput').value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        renderGenesTable(sortData(mutatedGenesData));
+        document.getElementById('geneCountBadge').textContent = `${mutatedGenesData.length} genes`;
+        return;
+    }
+    
+    const filtered = mutatedGenesData.filter(gene => 
+        (gene.gene_name || '').toLowerCase().includes(searchTerm)
+    );
+    
+    document.getElementById('geneCountBadge').textContent = `${filtered.length} of ${mutatedGenesData.length} genes`;
+    renderGenesTable(sortData(filtered));
+}
+
+// Sort table by column
+function sortTable(column) {
+    if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'desc';
+    }
+    
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.sort === column) {
+            th.classList.add(currentSortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        }
+    });
+    
+    filterGenes();
+}
+
+// Load all charts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadPatientSexChart();
+    loadPatientRaceChart();
+    loadPatientEthnicityChart();
+    loadTestTypeChart();
+    loadSamplesPerPatientChart();
+    loadMutationCountChart();
+    loadMutatedGenesTable();
+    
+    document.getElementById('geneSearchInput').addEventListener('input', filterGenes);
+    
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.addEventListener('click', () => sortTable(th.dataset.sort));
+    });
+});
+</script>
+{% endblock %}
